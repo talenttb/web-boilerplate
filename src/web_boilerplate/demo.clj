@@ -1,9 +1,6 @@
 (ns web-boilerplate.demo
   (:require
-   [dev.onionpancakes.chassis.core :as chassis]
    [jsonista.core :as json]
-   [starfederation.datastar.clojure.adapter.http-kit :as d*-hk]
-   [starfederation.datastar.clojure.api :as d*]
    [web-boilerplate.util :as util]))
 
 (defonce state
@@ -139,41 +136,3 @@
        (for [{:keys [from to amount]} transfers]
          [:li (str from " → " to " $" amount)])]
       [:p "已結清"])]])
-
-(defn render-split-bill-page [_req]
-  (let [process-eql (requiring-resolve 'web-boilerplate.pathom/process-eql)]
-    (chassis/html
-      [chassis/doctype-html5
-       [:html {:lang "zh-Hant" :data-theme "light"}
-        split-bill-head
-        [:body (:demo/<split-bill-view> (process-eql [:demo/<split-bill-view>]))]]])))
-
-(defn split-bill-handler [{:keys [request-method] :as req}]
-  (case request-method
-    :get
-    {:status 200
-     :headers {"Content-Type" "text/html; charset=utf-8"}
-     :body (render-split-bill-page req)}
-
-    :post
-    (let [process-eql (requiring-resolve 'web-boilerplate.pathom/process-eql)
-          signals (some-> (d*/get-signals req)
-                          (json/read-value json/keyword-keys-object-mapper))
-          {:keys [action memberName expensePayer expenseDescription expenseAmount expenseId]} signals]
-      (d*-hk/->sse-response req
-        {d*-hk/on-open
-         (fn [sse]
-           (d*/with-open-sse sse
-             (case action
-               "add-member" (process-eql [(list 'demo.member/add! {:name memberName})])
-               "add-expense" (process-eql [(list 'demo.expense/add! {:payer expensePayer
-                                                                      :description expenseDescription
-                                                                      :amount expenseAmount})])
-               "remove-expense" (process-eql [(list 'demo.expense/remove! {:id expenseId})])
-               nil)
-             (d*/patch-elements! sse
-               (chassis/html (:demo/<split-bill-view> (process-eql [:demo/<split-bill-view>]))))
-             (d*/patch-signals! sse
-               (json/write-value-as-string {:action "" :memberName "" :expenseDescription "" :expenseAmount "" :expenseId ""}))))}))
-
-    {:status 405 :body "Method not allowed"}))

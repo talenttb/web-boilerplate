@@ -8,6 +8,8 @@
             [jsonista.core :as json]
             [com.brunobonacci.mulog :as mu]
             [dev.onionpancakes.chassis.core :as chassis]
+            [starfederation.datastar.clojure.adapter.http-kit :as d*-hk]
+            [starfederation.datastar.clojure.api :as d*]
             [web-boilerplate.logging :as log]
             [web-boilerplate.pathom :as pathom]
             [web-boilerplate.demo :as demo]))
@@ -140,9 +142,45 @@
           []
           (handler request))))))
 
+(defn render-split-bill-page [_req]
+  (chassis/html
+    [chassis/doctype-html5
+     [:html {:lang "zh-Hant" :data-theme "light"}
+      demo/split-bill-head
+      [:body (:demo/<split-bill-view> (pathom/process-eql [:demo/<split-bill-view>]))]]]))
+
+(defn split-bill-handler [{:keys [request-method] :as req}]
+  (case request-method
+    :get
+    {:status 200
+     :headers {"Content-Type" "text/html; charset=utf-8"}
+     :body (render-split-bill-page req)}
+
+    :post
+    (let [signals (some-> (d*/get-signals req)
+                          (json/read-value json/keyword-keys-object-mapper))
+          {:keys [action memberName expensePayer expenseDescription expenseAmount expenseId]} signals]
+      (d*-hk/->sse-response req
+        {d*-hk/on-open
+         (fn [sse]
+           (d*/with-open-sse sse
+             (case action
+               "add-member" (pathom/process-eql [(list 'demo.member/add! {:name memberName})])
+               "add-expense" (pathom/process-eql [(list 'demo.expense/add! {:payer expensePayer
+                                                                             :description expenseDescription
+                                                                             :amount expenseAmount})])
+               "remove-expense" (pathom/process-eql [(list 'demo.expense/remove! {:id expenseId})])
+               nil)
+             (d*/patch-elements! sse
+               (chassis/html (:demo/<split-bill-view> (pathom/process-eql [:demo/<split-bill-view>]))))
+             (d*/patch-signals! sse
+               (json/write-value-as-string {:action "" :memberName "" :expenseDescription "" :expenseAmount "" :expenseId ""}))))}))
+
+    {:status 405 :body "Method not allowed"}))
+
 (def routes
   [["/" {:handler #'home-handler}]
-   ["/demo" {:handler #'demo/split-bill-handler}]
+   ["/demo" {:handler #'split-bill-handler}]
    ["/api"
     ["/health" {:handler #'health-handler}]
     ["/status" {:handler #'status-handler}]

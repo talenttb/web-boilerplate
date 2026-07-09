@@ -58,8 +58,8 @@ web-boilerplate/
 │   ├── db.clj                # append-only DB core API（樣板未接，備而不用）
 │   ├── pathom.clj            # Pathom3 registry + process-eql（唯一查詢入口）
 │   ├── pathom/plugins.clj    # Pathom3 plugins
-│   ├── handler.clj           # reitit routes + middleware
-│   ├── demo.clj              # demo：旅費分帳 domain + view + handler
+│   ├── handler.clj           # reitit routes + middleware + demo handler
+│   ├── demo.clj              # demo：旅費分帳 domain + view
 │   └── resolvers/
 │       └── demo.clj          # demo 的 Pathom resolvers/mutations
 ├── test/web_boilerplate/
@@ -148,11 +148,12 @@ web-boilerplate/
 - `resources/public/css/demo.css`
 - `test/web_boilerplate/demo_test.clj`
 
-**`src/web_boilerplate/handler.clj` 要刪三處：**
+**`src/web_boilerplate/handler.clj` 要刪四處：**
 
-1. `ns` 的 require：`[web-boilerplate.demo :as demo]`
+1. `ns` 的 require 三行：`[web-boilerplate.demo :as demo]`、`[starfederation.datastar.clojure.adapter.http-kit :as d*-hk]`、`[starfederation.datastar.clojure.api :as d*]`（後兩個 datastar require 只有 demo 在用，一併刪）
 2. `home-handler` 首頁連結那一行：`[:li [:a {:href "/demo"} "旅費分帳 demo"]]`
-3. `routes` 裡的路由：`["/demo" {:handler #'demo/split-bill-handler}]`
+3. `routes` 裡的路由：`["/demo" {:handler #'split-bill-handler}]`
+4. `render-split-bill-page` 與 `split-bill-handler` 兩個 fn 的連續區塊（緊接在 `wrap-request-logging` 之後、`routes` 之前）
 
 **`src/web_boilerplate/pathom.clj` 要刪四處：**
 
