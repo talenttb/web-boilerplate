@@ -129,6 +129,8 @@ web-boilerplate/
 2. `src/web_boilerplate/pathom.clj` 的 registry env map（`start-pathom!` 裡那個 `{::p.a.eql/parallel? true ...}`）比照 `:demo/state demo/state` 的模式加一行 `:db/ds (db/get-datasource)`，並在 `pathom.clj` 的 ns require 加 `[web-boilerplate.db :as db]`
 3. 新 domain 的 resolver 從 env 的 `:db/ds` 取 datasource，呼叫上表的 core API
 
+現成範例在 `resolvers/demo.clj` 底部的 `db-example-resolvers`（`trip-archive-list`／`trip-snapshot`／`trip-commit-history` 三顆，分別示範 `get-ref-by-kind`、`get-ref` 搭 `:select` 投影、`get-commits` 取 audit log，預設未註冊）：接上 `:db/ds` 後把 `(pci/register demo-resolvers/all-resolvers)` 改成 `(pci/register (into demo-resolvers/all-resolvers demo-resolvers/db-example-resolvers))` 即可查。
+
 ## Demo：旅費分帳
 
 `/demo` 是一個完整的 Datastar + Pathom3 範例（表單粗略，重點示範資料流不是 UI 完成度）：
