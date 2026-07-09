@@ -239,8 +239,9 @@ EQL query (inbound port)
 ```
 inbound adapters（web handler／CLI／REPL helper）─ 靜態 require pathom，呼叫 process-eql
   ↓
-pathom.clj（registry + env + process-eql ＝ inbound port，也是 EQL 路徑的 composition root：
-            在這裡建構資源並放進 env，如 :db/ds (db/get-datasource)、:runner/req!）
+pathom.clj（registry + env + process-eql ＝ inbound port；
+            resolver 註冊與引擎設定（讀 config :pathom）內部自管，
+            資源一律外部注入、未注入即 throw）
   ↓ require
 resolvers/<domain>.clj（薄 adapter：從 env 解構資源，以「參數」傳入 domain fn）
   ↓ require
@@ -249,7 +250,7 @@ resolvers/<domain>.clj（薄 adapter：從 env 解構資源，以「參數」傳
 outbound adapters（db.clj／外部服務 client：提供函式 API 與資源生命週期）
 ```
 
-資源注入點＝`pathom.clj` 的 env（EQL 路徑的 composition root）。domain ns 對 `db.clj` 的靜態 require 只是使用它的函式 API（`write!`／`get-ref`…），**資源（datasource 等）永遠從參數來**——這就是依賴反轉的所在，反轉的是資源，不是 ns require。EQL 路徑之外的入口（`-main`、長駐引擎的 `start!`）各自當自己的 composition root 取得資源，再以參數餵給 domain fn。
+composition root＝應用入口（`core/-main`／`user/start`）：入口以平鋪的 resources map 呼叫 `(start-pathom! resources)`，資源在入口組裝（如 `:db/ds (db/get-datasource)`、`:runner/req!`）。`pathom.clj` 內部自管 resolver 註冊與引擎設定（讀 config 的 `:pathom` 區段），不做資源組裝——registry 為 nil 時 `process-eql`／`ping` 直接 throw，提示由入口呼叫 `start-pathom!`。domain ns 對 `db.clj` 的靜態 require 只是使用它的函式 API（`write!`／`get-ref`…），**資源（datasource 等）永遠從參數來**——這就是依賴反轉的所在，反轉的是資源，不是 ns require。
 
 鐵律：**被 pathom.clj 傳遞性 require 的 ns（resolvers、domain）永遠不呼叫 `process-eql`**。domain ns 一 require pathom 就成環，Clojure 載入器直接以 `Cyclic load dependency` 拒載。用 `requiring-resolve` 雖可破環，但它是 optional dependency／載入順序問題的 escape hatch，不是一般呼叫的慣用法——若發現需要靠它來呼叫 `process-eql`，代表那段 code 其實是 inbound adapter、放錯層了，正解是把它搬到 pathom 之上（如 handler.clj），不是留在原地破環。新增入口（CLI／排程／新頁面）＝在最上層加一個薄 adapter，domain 與 resolvers 零改動。
 
@@ -281,4 +282,4 @@ outbound adapters（db.clj／外部服務 client：提供函式 API 與資源生
 1. 在 domain namespace 實作 core logic（純函數，接收 `ds` 參數）
 2. 建立 `resolvers/<domain>.clj`，用 `pco/defresolver` / `pco/defmutation` 包裝
 3. Resolver 從 `env` 取得依賴（如 `{::keys [db-ds]}`）
-4. 在 `pathom.clj` 的 `start-pathom!` 中注入依賴到 env，並將 resolvers 加入 registry
+4. 依賴在應用入口（`core/-main`／`user/start`）的 resources map 補上一個 entry，記得回 `pathom.clj` 的 `pci/register` 掛上新 domain 的 `<domain>/all-resolvers`

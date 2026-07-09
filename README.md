@@ -135,10 +135,11 @@ web-boilerplate/
 ### 接上第一個 DB domain
 
 1. `resources/config.edn` 的 `:database` 填實際連線資訊（host/port/name/user/password）
-2. `src/web_boilerplate/pathom.clj` 的 registry env map（`start-pathom!` 裡那個 `{::p.a.eql/parallel? true ...}`）比照 `:demo/state demo/state` 的模式加一行 `:db/ds (db/get-datasource)`，並在 `pathom.clj` 的 ns require 加 `[web-boilerplate.db :as db]`
-3. 新 domain 的 resolver 從 env 的 `:db/ds` 取 datasource，呼叫上表的 core API
+2. `src/web_boilerplate/core.clj` 的 `pathom-resources` 加一行 `:db/ds (db/get-datasource)`（ns require 補 `[web-boilerplate.db :as db]`）：誰 new＝應用入口（`core/-main`／`user/start`）組 wiring 時呼叫，連線細節（讀 `config.edn` 的 `:database`）由 `db.clj` 內部處理
+3. `src/web_boilerplate/pathom.clj` 的 `pci/register` 改巢狀 vector 加掛 `demo-resolvers/db-example-resolvers`（官方建議形：每個來源一個 vector，見檔尾 `(comment ...)` 範例）——現成三顆 get 範例見 `resolvers/demo.clj` 尾端
+4. 新增自己的 domain 時同理：記得回 `pathom.clj` 的 `pci/register` 加 `<domain>/all-resolvers`
 
-現成範例在 `resolvers/demo.clj` 底部的 `db-example-resolvers`（`trip-archive-list`／`trip-snapshot`／`trip-commit-history` 三顆，分別示範 `get-ref-by-kind`、`get-ref` 搭 `:select` 投影、`get-commits` 取 audit log，預設未註冊）：接上 `:db/ds` 後把 `(pci/register demo-resolvers/all-resolvers)` 改成 `(pci/register (into demo-resolvers/all-resolvers demo-resolvers/db-example-resolvers))` 即可查。
+現成範例在 `resolvers/demo.clj` 底部的 `db-example-resolvers`（`trip-archive-list`／`trip-snapshot`／`trip-commit-history` 三顆，分別示範 `get-ref-by-kind`、`get-ref` 搭 `:select` 投影、`get-commits` 取 audit log，預設未註冊）。
 
 ## Demo：旅費分帳
 
@@ -166,14 +167,19 @@ web-boilerplate/
 3. `routes` 裡的路由：`["/demo" {:handler #'split-bill-handler}]`
 4. `render-split-bill-page` 與 `split-bill-handler` 兩個 fn 的連續區塊（緊接在 `wrap-request-logging` 之後、`routes` 之前）
 
-**`src/web_boilerplate/pathom.clj` 要刪四處：**
+**`src/web_boilerplate/pathom.clj` 要刪兩處：**
+
+1. `ns` 的 require：`[web-boilerplate.resolvers.demo :as demo-resolvers]`
+2. `start-pathom!` 裡 threading 巨集的一段：`(pci/register demo-resolvers/all-resolvers)`
+
+刪完 2 處後 `start-pathom!` 的 `(reset! registry ...)` 只剩 `pcp/with-plan-cache`／`p.plugin/register` 兩段 threading，仍是自洽可編譯的 ns（沒有其他 resolver 註冊也不會壞——之後接上第一個真正的 domain 時再 `pci/register` 進去）。
+
+**`src/web_boilerplate/core.clj` 要刪兩處：**
 
 1. `ns` 的 require：`[web-boilerplate.demo :as demo]`
-2. `ns` 的 require：`[web-boilerplate.resolvers.demo :as demo-resolvers]`
-3. `start-pathom!` 裡 registry env map 的一個 entry：`:demo/state demo/state`
-4. `start-pathom!` 裡 threading 巨集的一段：`(pci/register demo-resolvers/all-resolvers)`
+2. `pathom-resources` 裡的一個 entry：`:demo/state demo/state`
 
-刪完 4 處後 `start-pathom!` 的 `(reset! registry ...)` 只剩 `pcp/with-plan-cache`／`p.plugin/register` 兩段 threading，仍是自洽可編譯的 ns（沒有其他 resolver 註冊也不會壞——之後接上第一個真正的 domain 時再 `pci/register` 進去）。
+刪完 2 處後 `pathom-resources` 變成 `{}`，`-main` 呼叫 `(pathom/start-pathom! pathom-resources)` 依然成立（引擎設定仍從 config 讀，之後接上真正的 domain 資源再加回 entry）。
 
 ## 開發
 
