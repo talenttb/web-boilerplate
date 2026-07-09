@@ -239,10 +239,17 @@ EQL query (inbound port)
 ```
 inbound adapters（web handler／CLI／REPL helper）─ 靜態 require pathom，呼叫 process-eql
   ↓
-pathom.clj（registry + env + process-eql ＝ inbound port）
-  ↓
-resolvers/<domain>.clj（薄 adapter）→ <domain>.clj（core 純函數，不知道 Pathom 存在）→ outbound adapters（db／外部服務，經 env 注入）
+pathom.clj（registry + env + process-eql ＝ inbound port，也是 EQL 路徑的 composition root：
+            在這裡建構資源並放進 env，如 :db/ds (db/get-datasource)、:runner/req!）
+  ↓ require
+resolvers/<domain>.clj（薄 adapter：從 env 解構資源，以「參數」傳入 domain fn）
+  ↓ require
+<domain>.clj（core 純函數：資源必填首參（ds…），絕不自己抓資源）
+  ↓ 用傳入的資源呼叫
+outbound adapters（db.clj／外部服務 client：提供函式 API 與資源生命週期）
 ```
+
+資源注入點＝`pathom.clj` 的 env（EQL 路徑的 composition root）。domain ns 對 `db.clj` 的靜態 require 只是使用它的函式 API（`write!`／`get-ref`…），**資源（datasource 等）永遠從參數來**——這就是依賴反轉的所在，反轉的是資源，不是 ns require。EQL 路徑之外的入口（`-main`、長駐引擎的 `start!`）各自當自己的 composition root 取得資源，再以參數餵給 domain fn。
 
 鐵律：**被 pathom.clj 傳遞性 require 的 ns（resolvers、domain）永遠不呼叫 `process-eql`**。domain ns 一 require pathom 就成環，Clojure 載入器直接以 `Cyclic load dependency` 拒載。用 `requiring-resolve` 雖可破環，但它是 optional dependency／載入順序問題的 escape hatch，不是一般呼叫的慣用法——若發現需要靠它來呼叫 `process-eql`，代表那段 code 其實是 inbound adapter、放錯層了，正解是把它搬到 pathom 之上（如 handler.clj），不是留在原地破環。新增入口（CLI／排程／新頁面）＝在最上層加一個薄 adapter，domain 與 resolvers 零改動。
 
