@@ -48,7 +48,7 @@ web-boilerplate/
 ├── dev/
 │   └── user.clj              # 開發 REPL：start/stop/reset/restart/portal
 ├── src/web_boilerplate/
-│   ├── core.clj              # -main（composition root：注入 pathom 資源＋啟動 server）
+│   ├── core.clj              # -main（啟動 server）
 │   ├── config.clj            # 配置管理（cprop + malli 驗證）
 │   ├── logging.clj           # mulog 設定
 │   ├── server.clj            # http-kit server 生命週期
@@ -77,47 +77,46 @@ web-boilerplate/
 
 ### Pathom3 Hexagonal 架構
 
-各種入口都收斂到 `process-eql` 這一個呼叫點，資源則由入口注入 `pathom.clj` 的 env：
-
 ```
-┌────────────────────┐  ┌──────┐  ┌─────────────┐
-│ web（handler.clj） │  │ REPL │  │ CLI（未來） │
-└──────────┬─────────┘  └───┬──┘  └──────┬──────┘
-           │                │            │
-           └────────────────┼────────────┘
-                             │ process-eql
-                             ▼
-┌──────────────────────────────────────────────────────┐
-│ pathom.clj                                           │
-│ process-eql＝唯一呼叫點；env＝資源容器（由入口注入） │
-└──────────────────────────┬───────────────────────────┘
-                            │ require
-                            ▼
-┌──────────────────────────────────────┐
-│ resolvers/<domain>.clj（薄 adapter） │
-│ 從 env 解構資源、以參數呼叫 biz      │
-└──────────────────┬───────────────────┘
-                    │ require
-                    ▼
-┌───────────────────────────────────────────┐
-│ demo.clj（biz logic）                     │
-│ 資源必填首參，不認識外圍（Pathom／HTTP…） │
-└──────────────────────┬────────────────────┘
-                        │ 用傳入的資源呼叫
-                        ▼
-┌─────────────────────────────────────────────────┐
-│ db.clj（DB 與外部服務層；PostgreSQL，樣板未接） │
-└─────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────┐
+│ Inbound Adapters（handler.clj／REPL／未來 CLI）   │
+│ 唯一呼叫 process-eql 的層                         │
+└───────────────────────────────────────────────────┘
+                         │ 靜態 require pathom
+                         ▼
+┌───────────────────────────────────────────────────┐
+│ pathom.clj（inbound port ＋ composition root）    │
+│ process-eql＝查詢唯一入口；env 建構並注入資源     │
+│ （現況 :demo/state；接 DB 時同位置加              │
+│ :db/ds (db/get-datasource)）                      │
+└───────────────────────────────────────────────────┘
+                         │ require
+                         ▼
+┌───────────────────────────────────────────────────┐
+│ Pathom Resolvers（薄 adapter）resolvers/demo.clj  │
+│ 從 env 解構資源、以『參數』傳入 domain fn；       │
+│ attribute 使用 domain prefix（demo.）             │
+└───────────────────────────────────────────────────┘
+                         │ require（只用函式 API）
+                         ▼
+┌───────────────────────────────────────────────────┐
+│ Domain Logic（core）demo.clj                      │
+│ 純 business logic（expenses-total／               │
+│ member-balances／settle-transfers）；             │
+│ 資源必填首參、不知道 Pathom 存在                  │
+└───────────────────────────────────────────────────┘
+                         │ 用傳入的資源呼叫
+                         ▼
+┌───────────────────────────────────────────────────┐
+│ Outbound Adapters：db.clj（PostgreSQL，樣板未接） │
+└───────────────────────────────────────────────────┘
 ```
 
-- **入口在哪？** web／REPL／CLI 全部呼叫 `process-eql`；加入口＝加一條線，其餘層零改動。
-- **誰注入資源？** 入口：`core/-main` 與 `user/start` 呼叫 `(pathom/start-pathom! core/pathom-resources)`；`pathom.clj` 只是收 map 的 port，不自取資源。
-- **誰是 biz logic？** `demo.clj`。
-- **誰處理 DB 與外部服務？** `db.clj`，經 resources map → env → 參數 一路傳遞抵達。
+消費端（handler、REPL、未來的 CLI）只透過 `web-boilerplate.pathom/process-eql` 查詢，不需要知道底層實作。新增 domain 時建立獨立的 `resolvers/<domain>.clj`，business logic 留在 domain namespace（如 `demo.clj`），resolver 只做薄 adapter、資源從 env 以參數傳入；attribute 用該 domain 自己的 prefix（如 `demo.`）避免命名衝突。鐵律：被 `pathom.clj` 傳遞性 require 的 ns（resolvers、domain）不呼叫 `process-eql`——詳見 `.claude/skills/pathom3` 的「分層與 require 方向」。
 
 ## Append-only DB（commits + refs）
 
-`web-boilerplate.db` 保留 stock-dash 同款 append-only 讀寫核心，但**樣板預設不接 DB**：`core/-main` 建構的 `pathom-resources` 不碰 `db/get-datasource`，開箱即用不需要 PostgreSQL。
+`web-boilerplate.db` 保留 stock-dash 同款 append-only 讀寫核心，但**樣板預設不接 DB**：啟動路徑（`core/-main`）與 `pathom.clj` 的 registry env 都不碰 `db/get-datasource`，開箱即用不需要 PostgreSQL。
 
 ### Core API（`web-boilerplate.db`）
 
@@ -136,8 +135,8 @@ web-boilerplate/
 ### 接上第一個 DB domain
 
 1. `resources/config.edn` 的 `:database` 填實際連線資訊（host/port/name/user/password）
-2. `src/web_boilerplate/core.clj` 的 `pathom-resources` 比照 `:demo/state demo/state` 的模式加一行 `:db/ds (db/get-datasource)`，並在 `core.clj` 的 ns require 加 `[web-boilerplate.db :as db]`
-3. 新 domain 照 `demo.clj` 的模式建立 domain ns 與 `resolvers/<domain>.clj`，`pathom.clj` 補上該 domain 的 require 與 `pci/register` 一行；新 domain 的 resolver 從 env 的 `:db/ds` 取 datasource，呼叫上表的 core API
+2. `src/web_boilerplate/pathom.clj` 的 registry env map（`start-pathom!` 裡那個 `{::p.a.eql/parallel? true ...}`）比照 `:demo/state demo/state` 的模式加一行 `:db/ds (db/get-datasource)`，並在 `pathom.clj` 的 ns require 加 `[web-boilerplate.db :as db]`
+3. 新 domain 的 resolver 從 env 的 `:db/ds` 取 datasource，呼叫上表的 core API
 
 現成範例在 `resolvers/demo.clj` 底部的 `db-example-resolvers`（`trip-archive-list`／`trip-snapshot`／`trip-commit-history` 三顆，分別示範 `get-ref-by-kind`、`get-ref` 搭 `:select` 投影、`get-commits` 取 audit log，預設未註冊）：接上 `:db/ds` 後把 `(pci/register demo-resolvers/all-resolvers)` 改成 `(pci/register (into demo-resolvers/all-resolvers demo-resolvers/db-example-resolvers))` 即可查。
 
@@ -167,17 +166,14 @@ web-boilerplate/
 3. `routes` 裡的路由：`["/demo" {:handler #'split-bill-handler}]`
 4. `render-split-bill-page` 與 `split-bill-handler` 兩個 fn 的連續區塊（緊接在 `wrap-request-logging` 之後、`routes` 之前）
 
-**`src/web_boilerplate/pathom.clj` 要刪兩處：**
-
-1. `ns` 的 require：`[web-boilerplate.resolvers.demo :as demo-resolvers]`
-2. `start-pathom!` 裡 threading 巨集的一段：`(pci/register demo-resolvers/all-resolvers)`
-
-**`src/web_boilerplate/core.clj` 要刪兩處：**
+**`src/web_boilerplate/pathom.clj` 要刪四處：**
 
 1. `ns` 的 require：`[web-boilerplate.demo :as demo]`
-2. `pathom-resources` map 裡的一個 entry：`:demo/state demo/state`
+2. `ns` 的 require：`[web-boilerplate.resolvers.demo :as demo-resolvers]`
+3. `start-pathom!` 裡 registry env map 的一個 entry：`:demo/state demo/state`
+4. `start-pathom!` 裡 threading 巨集的一段：`(pci/register demo-resolvers/all-resolvers)`
 
-刪完後 `pathom.clj` 的 `start-pathom!` 只剩 `pcp/with-plan-cache`／`p.plugin/register` 兩段 threading，`core.clj` 的 `pathom-resources` 只剩 `:config/get-config config/get-config`，仍是自洽可編譯的狀態（沒有其他 resolver 註冊也不會壞——之後接上第一個真正的 domain 時再 `pci/register` 進去）。
+刪完 4 處後 `start-pathom!` 的 `(reset! registry ...)` 只剩 `pcp/with-plan-cache`／`p.plugin/register` 兩段 threading，仍是自洽可編譯的 ns（沒有其他 resolver 註冊也不會壞——之後接上第一個真正的 domain 時再 `pci/register` 進去）。
 
 ## 開發
 

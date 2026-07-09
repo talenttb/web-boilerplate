@@ -6,7 +6,6 @@
             [web-boilerplate.server :as server]
             [web-boilerplate.handler :as handler]
             [web-boilerplate.config :as config]
-            [web-boilerplate.core :as core]
             [web-boilerplate.pathom :as pathom]
             [web-boilerplate.portal :as portal]))
 
@@ -24,20 +23,20 @@
       (apply original args))))
 
 (defn start []
-  (pathom/start-pathom! core/pathom-resources)
   (server/start-server! #'handler/app))
 
 (defn stop []
   (server/stop-server!))
 
 (defn reset []
-  (reload/reload)
   (start)
+  (reload/reload)
   (println "✓ Code reloaded"))
 
 (defn restart []
   (stop)
-  (reset))
+  (reset)
+  (start))
 
 (defn portal []
   (portal/open!))
@@ -53,7 +52,7 @@
 (comment
   (start)
   (portal)
-  (pathom/start-pathom! core/pathom-resources)
+  (pathom/start-pathom!)
   (config/load-config!)
   (restart)
   (reset)
