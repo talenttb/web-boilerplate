@@ -32,13 +32,25 @@
 <textarea data-bind:content></textarea>
 ```
 
+### Signal 名大小寫（server-rendered HTML 必讀）
+
+HTML parser 會把屬性名小寫化：原始碼寫 `data-bind:memberName`，DOM 裡變成 `data-bind:membername`，signal 就成了 `$membername`，跟表達式裡的 `$memberName` 對不上。三種寫法實測（Datastar 1.0）：
+
+| HTML 寫法 | 實際 signal |
+|---|---|
+| `data-bind:memberName` | `membername`（camelCase 遺失，勿用） |
+| `data-bind:member-name` | `memberName`（kebab key 自動轉 camelCase） |
+| `data-bind="memberName"` | `memberName`（值形式，屬性值保留大小寫） |
+
+所有以 colon key 帶 signal 名的屬性（`data-bind:`／`data-signals:`／`data-computed:`／`data-ref:`／`data-indicator:`…）都適用同一規則：signal 名含大寫時，用 kebab-case key 或值形式。
+
 ### data-ref
 
 建立元素參照（實為 signal）。
 
 ```html
 <div data-ref:container></div>
-<input data-ref:inputEl />
+<input data-ref:input-el />
 ```
 
 ### data-json-signals（1.0 新增）

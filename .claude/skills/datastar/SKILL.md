@@ -95,6 +95,8 @@ description: Use when building reactive web UIs with backend-driven updates via 
   {d*/only-if-missing true})
 ```
 
+`patch-signals!` 遵循 RFC 7386 JSON Merge Patch：**value 為 `null` 代表「刪除該 signal」**——這是功能，是移除 signal 的正規手段，刪掉後該 signal 的前端綁定即失效。要「清空值但保留 signal 與綁定」（如送出後清表單）用 `""`／`0`；注意 Clojure map 裡的 `nil` 經 JSON 序列化就是 `null`，等於下刪除指令。兩種都合法，依你要「刪」還是「清」自行選擇。
+
 `patch-signals!` 需要 JSON 字串或可序列化成 JSON 物件的資料，SDK **不內建 JSON 序列化**，請自備 jsonista 等函式庫。
 
 ## 前端 data-* 屬性
@@ -107,6 +109,20 @@ description: Use when building reactive web UIs with backend-driven updates via 
 <input data-bind:name />
 <pre data-json-signals></pre>    <!-- 1.0 新增：debug 顯示 signals -->
 ```
+
+### Signal 名大小寫（server-rendered HTML 必讀）
+
+HTML parser 會把屬性名小寫化：原始碼寫 `data-bind:memberName`，DOM 裡變成 `data-bind:membername`，signal 就成了 `$membername`，跟表達式裡的 `$memberName` 對不上。三種寫法實測（Datastar 1.0）：
+
+| HTML 寫法 | 實際 signal |
+|---|---|
+| `data-bind:memberName` | `membername`（camelCase 遺失，勿用） |
+| `data-bind:member-name` | `memberName`（kebab key 自動轉 camelCase） |
+| `data-bind="memberName"` | `memberName`（值形式，屬性值保留大小寫） |
+
+所有以 colon key 帶 signal 名的屬性（`data-bind:`／`data-signals:`／`data-computed:`／`data-ref:`／`data-indicator:`…）都適用同一規則：signal 名含大寫時，用 kebab-case key 或值形式。
+
+本樣板 demo（旅費分帳）表單即用值形式。
 
 ### DOM 綁定
 
