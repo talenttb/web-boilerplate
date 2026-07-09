@@ -1,0 +1,6 @@
+{:linters
+ {:shadowed-var {:level :warning}
+  :unresolved-var {:exclude [org.httpkit.client]}}
+ :lint-as {com.wsscode.pathom3.connect.operation/defresolver clojure.core/defn
+           com.wsscode.pathom3.connect.operation/defmutation clojure.core/defn}
+ :hooks {:analyze-call {cuerdas.core/istr hooks.cuerdas/istr}}}

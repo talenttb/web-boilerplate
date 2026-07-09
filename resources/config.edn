@@ -1,0 +1,26 @@
+{:app {:env :dev
+       :node-name "dev"}
+
+ :nrepl {:port 7888}
+
+ :server {:host "0.0.0.0"
+          :port 8080}
+
+ :logging {:console {:enabled false}
+           :file {:enabled true
+                  :path "workspace/app.log"}}
+
+ :portal {:port 5678
+          :launcher :vs-code}
+
+ :pathom {:debug {:enabled true
+                  :log-slow-queries true
+                  :slow-query-threshold-ms 100
+                  :log-errors true
+                  :full-stats false}}
+
+ :database {:host ""
+            :port 5432
+            :name ""
+            :user ""
+            :password ""}}

@@ -1,0 +1,21 @@
+#!/bin/bash
+# Pre-commit hook to check for debug code in source files
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# Check for #p debug macro in src/ directory
+if rg '#p\s+\(' src/ --quiet 2>/dev/null; then
+    echo ""
+    echo "❌ Error: Found #p debug macro in source code!"
+    echo ""
+    echo "Please remove all #p debug macros before committing:"
+    echo ""
+    rg '#p\s+\(' src/ --color always --no-heading --line-number
+    echo ""
+    exit 1
+fi
+
+echo "✓ All pre-commit checks passed"
+exit 0

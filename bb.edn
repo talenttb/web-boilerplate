@@ -1,0 +1,79 @@
+{:tasks
+ {:enter (println "Running task:" (:name (current-task)))
+
+  clj-repl {:doc "Run Clojure nREPL with cider middleware"
+            :task (clojure "-A:dev -M -m nrepl.cmdline --middleware [cider.nrepl/cider-middleware]")}
+
+  trim-log {:doc "Trim log files to last N lines (default: 5000)"
+            :requires ([babashka.fs :as fs]
+                       [clojure.java.io :as io])
+            :task (let [default-paths ["workspace/app.log"]
+                        keep-lines 5000
+                        paths (if (seq *command-line-args*) *command-line-args* default-paths)]
+                    (doseq [path paths]
+                      (let [file (fs/file path)]
+                        (if-not (fs/exists? file)
+                          (println (str "skip (not found): " path))
+                          (let [tmp (fs/file (str path ".tmp"))
+                                tail (with-open [r (io/reader file)]
+                                       (reduce (fn [q line]
+                                                 (let [q' (conj q line)]
+                                                   (if (> (count q') keep-lines) (pop q') q')))
+                                               clojure.lang.PersistentQueue/EMPTY
+                                               (line-seq r)))
+                                orig-size (fs/size file)]
+                            (with-open [w (io/writer tmp)]
+                              (doseq [line tail]
+                                (.write w line)
+                                (.write w "\n")))
+                            (fs/move tmp file {:replace-existing true :atomic-move true})
+                            (println (format "trimmed %s: %d -> %d bytes (kept last %d lines)"
+                                             path orig-size (fs/size file) (count tail))))))))}
+
+  copy-secrets {:doc "Copy secrets from main checkout to current dir"
+                :requires ([babashka.fs :as fs]
+                           [clojure.string :as str]
+                           [babashka.process :refer [shell]])
+                :task (let [main-dir (-> (shell {:out :string} "git worktree list --porcelain")
+                                         :out
+                                         (str/split-lines)
+                                         first
+                                         (str/replace (re-pattern "^worktree ") ""))
+                            secrets ["workspace/secret.edn"]]
+                        (doseq [f secrets]
+                          (let [src (fs/file main-dir f)]
+                            (when (fs/exists? src)
+                              (fs/create-dirs (fs/parent (fs/file f)))
+                              (fs/copy src (fs/file f) {:replace-existing true})
+                              (println (str "Copied " src " -> " f))))))}
+
+  worktree-up
+  {:doc "隔離起服務：找空 port + copy-secrets，直接背景啟 clj-repl（agent 用 run_in_background 跑這一個指令即可）"
+   :requires ([babashka.process :refer [shell]])
+   :task (let [s1  (java.net.ServerSocket. 0)
+               s2  (java.net.ServerSocket. 0)
+               web (.getLocalPort s1)
+               ptl (.getLocalPort s2)]
+           (.close s1) (.close s2)
+           (shell "bb copy-secrets")
+           (println (format "web → http://localhost:%d（連 brepl 後 (user/start)；或 (config/get-config) 查 :server :port）" web))
+           (shell {:extra-env {"SERVER__PORT" (str web) "PORTAL__PORT" (str ptl)}} "bb clj-repl"))}
+
+  wait-nrepl
+  {:doc "等當前目錄出現 .nrepl-port（worktree-up 背景啟動後呼叫；預設最多 90s，可帶秒數參數）"
+   :requires ([babashka.fs :as fs])
+   :task (let [timeout-s (if (seq *command-line-args*)
+                           (parse-long (first *command-line-args*))
+                           90)
+               deadline  (+ (System/currentTimeMillis) (* (long timeout-s) 1000))]
+           (loop []
+             (cond
+               (fs/exists? ".nrepl-port")
+               (println (format "nrepl-port → %s" (slurp ".nrepl-port")))
+
+               (>= (System/currentTimeMillis) deadline)
+               (do (println (format "TIMEOUT：.nrepl-port 未在 %ss 內出現" timeout-s))
+                   (System/exit 1))
+
+               :else
+               (do (Thread/sleep 1000) (recur)))))}}}

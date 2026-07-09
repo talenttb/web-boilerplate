@@ -1,0 +1,51 @@
+{:paths ["src" "resources"]
+
+ :deps {org.clojure/clojure {:mvn/version "1.12.5"}
+        dev.data-star.clojure/sdk {:mvn/version "1.0.0-RC10"}
+        dev.data-star.clojure/http-kit {:mvn/version "1.0.0-RC11"}
+        io.github.tonsky/clojure-plus {:mvn/version "1.7.2"}
+        dev.data-star.clojure/brotli {:mvn/version "1.0.0-RC10"}
+        com.aayushatharva.brotli4j/brotli4j {:mvn/version "1.23.0"}
+        com.aayushatharva.brotli4j/native-linux-x86_64 {:mvn/version "1.23.0"}
+        com.aayushatharva.brotli4j/native-osx-aarch64 {:mvn/version "1.23.0"}
+        cprop/cprop {:mvn/version "0.1.21"}
+        http-kit/http-kit {:mvn/version "2.9.0-beta3"}
+        metosin/reitit-ring {:mvn/version "0.10.1"}
+        ring/ring-core {:mvn/version "1.15.5"}
+        metosin/jsonista {:mvn/version "1.0.0"}
+        com.brunobonacci/mulog {:mvn/version "0.10.1"}
+        com.wsscode/pathom3 {:mvn/version "2025.01.16-alpha"}
+        dev.onionpancakes/chassis {:mvn/version "1.0.365"}
+        metosin/malli {:mvn/version "0.20.1"}
+        com.github.seancorfield/next.jdbc {:mvn/version "1.3.1118"}
+        org.postgresql/postgresql {:mvn/version "42.7.11"}
+        com.github.f4b6a3/uuid-creator {:mvn/version "6.1.1"}
+        nano-id/nano-id {:mvn/version "1.1.0"}
+        com.zaxxer/HikariCP {:mvn/version "7.1.0"}
+        com.github.seancorfield/honeysql {:mvn/version "2.7.1390"}
+        nrepl/nrepl {:mvn/version "1.7.0"}
+        funcool/cuerdas {:mvn/version "2026.415"}}
+
+ :aliases
+ {:test {:extra-paths ["test"]
+         :extra-deps {org.clojure/test.check {:mvn/version "1.1.3"}
+                      io.github.cognitect-labs/test-runner {:git/tag "v0.5.1" :git/sha "5e91ee0"}}
+         :main-opts ["-m" "cognitect.test-runner"]}
+
+  :run {:main-opts ["-m" "web-boilerplate.core"]}
+
+  :dev {:extra-paths ["dev"]
+        :extra-deps {nrepl/nrepl {:mvn/version "1.7.0"}
+                     cider/cider-nrepl {:mvn/version "0.58.0"}
+                     io.github.tonsky/clj-reload {:mvn/version "1.0.0"}
+                     djblue/portal {:mvn/version "0.65.0"}
+                     mvxcvi/puget {:mvn/version "1.3.4"}}}
+
+  :nrepl {:main-opts ["-m" "nrepl.cmdline"
+                      "--middleware" "[cider.nrepl/cider-middleware]"]}
+
+  :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.14"}}
+          :ns-default build}
+
+  :outdated {:deps {com.github.liquidz/antq {:mvn/version "RELEASE"}}
+             :main-opts ["-m" "antq.core" "--upgrade"]}}}

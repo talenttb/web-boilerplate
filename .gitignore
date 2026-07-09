@@ -1,3 +1,4 @@
+# Leiningen
 pom.xml
 pom.xml.asc
 *.jar
@@ -10,5 +11,45 @@ pom.xml.asc
 .lein-repl-history
 .lein-plugins/
 .lein-failures
+
+# REPL
 .nrepl-port
+.nrepl-history
+.rebel_readline_history
+.brepl/*
+!.brepl/hooks.edn
+
+# deps.edn
 .cpcache/
+
+# Clojure LSP
+.lsp/
+.clj-kondo/.cache/
+
+# Editor
+.calva/
+.vscode/
+.idea/
+.portal/
+*.swp
+*~
+
+# macOS
+.DS_Store
+
+# AI Tools
+.claude/*
+!.claude/workflows/
+!.claude/commands/
+!.claude/agents/
+!.claude/skills/
+
+# Workspace (local files not to be committed)
+/workspace/*
+!/workspace/.gitkeep
+
+# Log files
+/log/
+
+# Node.js
+node_modules/
