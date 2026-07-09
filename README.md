@@ -78,32 +78,41 @@ web-boilerplate/
 ### Pathom3 Hexagonal 架構
 
 ```
-┌──────────────────────────────────────────────────┐
-│  EQL Query Interface (inbound port)               │
-│  process-eql — handler／REPL／demo view 共用唯一入口│
-└──────────────────┬───────────────────────────────┘
-                    │
-┌──────────────────▼───────────────────────────────┐
-│  Pathom Resolvers (adapters)                      │
-│  resolvers/demo.clj                               │
-│  - 從 env 取得依賴（:demo/state、:config/get-config）│
-│  - attribute 使用 domain prefix（demo.）           │
-└──────────────────┬───────────────────────────────┘
-                    │
-┌──────────────────▼───────────────────────────────┐
-│  Domain Logic (core)                              │
-│  demo.clj                                         │
-│  - 純 business logic（expenses-total／            │
-│    member-balances／settle-transfers），不依賴 Pathom│
-└──────────────────┬───────────────────────────────┘
-                    │
-┌──────────────────▼───────────────────────────────┐
-│  External Resources (outbound adapters)           │
-│  db.clj（PostgreSQL，樣板未接）                    │
-└──────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────┐
+│ Inbound Adapters（handler.clj／REPL／未來 CLI）   │
+│ 唯一呼叫 process-eql 的層                         │
+└───────────────────────────────────────────────────┘
+                         │ 靜態 require pathom
+                         ▼
+┌───────────────────────────────────────────────────┐
+│ pathom.clj（inbound port ＋ composition root）    │
+│ process-eql＝查詢唯一入口；env 建構並注入資源     │
+│ （現況 :demo/state；接 DB 時同位置加              │
+│ :db/ds (db/get-datasource)）                      │
+└───────────────────────────────────────────────────┘
+                         │ require
+                         ▼
+┌───────────────────────────────────────────────────┐
+│ Pathom Resolvers（薄 adapter）resolvers/demo.clj  │
+│ 從 env 解構資源、以『參數』傳入 domain fn；       │
+│ attribute 使用 domain prefix（demo.）             │
+└───────────────────────────────────────────────────┘
+                         │ require（只用函式 API）
+                         ▼
+┌───────────────────────────────────────────────────┐
+│ Domain Logic（core）demo.clj                      │
+│ 純 business logic（expenses-total／               │
+│ member-balances／settle-transfers）；             │
+│ 資源必填首參、不知道 Pathom 存在                  │
+└───────────────────────────────────────────────────┘
+                         │ 用傳入的資源呼叫
+                         ▼
+┌───────────────────────────────────────────────────┐
+│ Outbound Adapters：db.clj（PostgreSQL，樣板未接） │
+└───────────────────────────────────────────────────┘
 ```
 
-消費端（handler、REPL、前端）只透過 `web-boilerplate.pathom/process-eql` 查詢，不需要知道底層實作。新增 domain 時建立獨立的 `resolvers/<domain>.clj`，business logic 留在 domain namespace（如 `demo.clj`），resolver 只做薄薄的 adapter；attribute 用該 domain 自己的 prefix（如 `demo.`）避免命名衝突。
+消費端（handler、REPL、未來的 CLI）只透過 `web-boilerplate.pathom/process-eql` 查詢，不需要知道底層實作。新增 domain 時建立獨立的 `resolvers/<domain>.clj`，business logic 留在 domain namespace（如 `demo.clj`），resolver 只做薄 adapter、資源從 env 以參數傳入；attribute 用該 domain 自己的 prefix（如 `demo.`）避免命名衝突。鐵律：被 `pathom.clj` 傳遞性 require 的 ns（resolvers、domain）不呼叫 `process-eql`——詳見 `.claude/skills/pathom3` 的「分層與 require 方向」。
 
 ## Append-only DB（commits + refs）
 
