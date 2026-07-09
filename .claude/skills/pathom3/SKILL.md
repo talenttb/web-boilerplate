@@ -239,8 +239,8 @@ EQL query (inbound port)
 ```
 inbound adapters（web handler／CLI／REPL helper）─ 靜態 require pathom，呼叫 process-eql
   ↓
-pathom.clj（registry + env + process-eql ＝ inbound port，也是 EQL 路徑的 composition root：
-            在這裡建構資源並放進 env，如 :db/ds (db/get-datasource)、:runner/req!）
+pathom.clj（registry + env + process-eql ＝ inbound port；
+            env＝資源容器，由入口注入）
   ↓ require
 resolvers/<domain>.clj（薄 adapter：從 env 解構資源，以「參數」傳入 domain fn）
   ↓ require
@@ -249,7 +249,7 @@ resolvers/<domain>.clj（薄 adapter：從 env 解構資源，以「參數」傳
 outbound adapters（db.clj／外部服務 client：提供函式 API 與資源生命週期）
 ```
 
-資源注入點＝`pathom.clj` 的 env（EQL 路徑的 composition root）。domain ns 對 `db.clj` 的靜態 require 只是使用它的函式 API（`write!`／`get-ref`…），**資源（datasource 等）永遠從參數來**——這就是依賴反轉的所在，反轉的是資源，不是 ns require。EQL 路徑之外的入口（`-main`、長駐引擎的 `start!`）各自當自己的 composition root 取得資源，再以參數餵給 domain fn。
+composition root＝**應用入口**（`core/-main`／`user/start`）：入口建構資源，以 map 呼叫 `(pathom/start-pathom! resources)`。`pathom.clj` 是純 port，`env` 只是「收到什麼放什麼」的容器，不 require 任何資源提供者。`defonce env-resources` 記住上次注入的 map，clj-reload 之後 `after-ns-reload` hook 靠它自動重啟（`defonce` 的值由 clj-reload 自動 keep，不受 reload 影響）。domain ns 對 `db.clj` 的靜態 require 只是使用它的函式 API（`write!`／`get-ref`…），**資源（datasource 等）永遠從參數來**——這就是依賴反轉的所在，反轉的是資源，不是 ns require。
 
 鐵律：**被 pathom.clj 傳遞性 require 的 ns（resolvers、domain）永遠不呼叫 `process-eql`**。domain ns 一 require pathom 就成環，Clojure 載入器直接以 `Cyclic load dependency` 拒載。用 `requiring-resolve` 雖可破環，但它是 optional dependency／載入順序問題的 escape hatch，不是一般呼叫的慣用法——若發現需要靠它來呼叫 `process-eql`，代表那段 code 其實是 inbound adapter、放錯層了，正解是把它搬到 pathom 之上（如 handler.clj），不是留在原地破環。新增入口（CLI／排程／新頁面）＝在最上層加一個薄 adapter，domain 與 resolvers 零改動。
 
